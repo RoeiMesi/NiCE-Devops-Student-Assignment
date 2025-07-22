@@ -60,7 +60,6 @@ This project delivers an **automated, end-to-end AWS solution** built with **AWS
    **PowerShell**  
    ```powershell
    cd tests
-   Rename-Item invoke_lambda.bat invoke_lambda.ps1  # first-time only
    .\invoke_lambda.ps1
    ```
 
