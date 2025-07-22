@@ -6,7 +6,8 @@ from aws_cdk import (
     aws_sns as sns,
     RemovalPolicy,
     aws_s3_deployment as s3deploy,
-    aws_iam as iam
+    aws_iam as iam,
+    aws_sns_subscriptions as subscriptions,
 )
 from constructs import Construct
 
@@ -27,10 +28,16 @@ class NiceHomeAssignmentStack(Stack):
             sources=[s3deploy.Source.asset(sample_files_path)],
             destination_bucket=bucket
         )
-        
+
+        # Create the sns topic.        
         topic = sns.Topic(self, "ExecutionTopic",
             display_name="BucketListerExecutionTopic",
             topic_name="BucketListerExecution")
+
+        # Subscribe an email endpoint to the SNS topic
+        topic.add_subscription(
+            subscriptions.EmailSubscription("roeim442@gmail.com")
+        )
 
         # Defining the IAM role with least privilege permissions:
         role = iam.Role(self, "ListerRole",
