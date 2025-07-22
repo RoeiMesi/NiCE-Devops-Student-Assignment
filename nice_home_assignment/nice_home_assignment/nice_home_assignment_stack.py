@@ -4,7 +4,7 @@ from aws_cdk import (
     CfnParameter,
     aws_s3 as s3,
     aws_lambda as _lambda,
-    # aws_sqs as sqs,
+    aws_sns as sns,
 )
 from constructs import Construct
 
@@ -12,7 +12,7 @@ class NiceHomeAssignmentStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-
+        
         bucket_name_param = CfnParameter(self, "BucketName", type="String",
             description="The S3 bucket whose objects we will list"
         )
@@ -32,4 +32,9 @@ class NiceHomeAssignmentStack(Stack):
                 "BUCKET_NAME": bucket.bucket_name
             }
         )
+        
+        topic = sns.Topic(self, "ExecutionTopic", display_name="BucketListerExecutionTopic", topic_name="BucketListerExecution")
+        
         bucket.grant_read(list_fn)
+        topic.grant_publish(list_fn)
+        list_fn.add_environment("SNS_TOPIC_ARN", topic.topic_arn)
