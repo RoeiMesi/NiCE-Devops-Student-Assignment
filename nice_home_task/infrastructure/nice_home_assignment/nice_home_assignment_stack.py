@@ -1,12 +1,12 @@
 from aws_cdk import (
     Duration,
     Stack,
-    CfnParameter,
     aws_s3 as s3,
     aws_lambda as _lambda,
     aws_sns as sns,
     RemovalPolicy,
-    aws_s3_deployment as s3deploy
+    aws_s3_deployment as s3deploy,
+    aws_iam as iam
 )
 from constructs import Construct
 
@@ -28,19 +28,42 @@ class NiceHomeAssignmentStack(Stack):
             destination_bucket=bucket
         )
         
+        topic = sns.Topic(self, "ExecutionTopic",
+            display_name="BucketListerExecutionTopic",
+            topic_name="BucketListerExecution")
+
+        # Defining the IAM role with least privilege permissions:
+        role = iam.Role(self, "ListerRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com")
+        )
+        
+        # Add S3 read access policy
+        role.add_to_policy(iam.PolicyStatement(
+            actions=["s3:GetBucket", "s3:ListBucket", "s3:GetObject"],
+            resources=[bucket.bucket_arn, bucket.arn_for_objects("*")] 
+        ))
+        
+        # Add SNS publish access
+        role.add_to_policy(iam.PolicyStatement(
+            actions=["sns:Publish"],
+            resources=[topic.topic_arn]
+        ))
+        
+        # Add lambda execution
+        role.add_managed_policy(
+            iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+        )
+        
         # Now we will define the lambda function to list all of the objects within the bucket:
         list_fn = _lambda.Function(self, "ListObjectsFunctions",
             runtime=_lambda.Runtime.PYTHON_3_9,
             handler="index.handler",
             code=_lambda.Code.from_asset("../lambda/list_objects"),
+            role=role,
             timeout=Duration.seconds(30),
             environment={
                 "BUCKET_NAME": bucket.bucket_name
             }
         )
-        
-        topic = sns.Topic(self, "ExecutionTopic", display_name="BucketListerExecutionTopic", topic_name="BucketListerExecution")
-        
-        bucket.grant_read(list_fn)
-        topic.grant_publish(list_fn)
+                
         list_fn.add_environment("SNS_TOPIC_ARN", topic.topic_arn)
