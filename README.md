@@ -29,17 +29,19 @@ This project delivers an **automated, end-to-end AWS solution** built with **AWS
 ## Setup & Deployment
 
 1. **Fork or clone** this repository.  
-2. In your GitHub repo, go to **Settings → Secrets → Actions**, and add:
+2. In your GitHub repo, go to **Settings → Secrets → Actions** and add:
    - `AWS_ACCESS_KEY_ID`  
    - `AWS_SECRET_ACCESS_KEY`  
    - `AWS_REGION` (e.g. `us-east-1`)  
-3. Navigate to **Actions → Manual CDK Deploy → Run workflow**.  
-4. The workflow will:
+3. Go to **Actions → Manual CDK Deploy → Run workflow**.  
+4. When prompted, enter your own **notification e‑mail address** (this will be subscribed to the SNS topic).  
+5. The workflow will then:
    1. Check out the code  
    2. Configure AWS credentials  
    3. Install CDK CLI and Python dependencies  
    4. Run `cdk bootstrap` and `cdk deploy --all`  
-5. Monitor the logs; on success, you will have an S3 bucket, SNS topic, and Lambda deployed.
+6. **Important:** After the first deploy you will receive a **“Subscription Confirmation”** e‑mail from AWS SNS. You **must click** the confirmation link before you can receive notifications.
+7. Monitor the run logs, on success, you will have an S3 bucket, SNS topic (with your e‑mail subscribed), and Lambda deployed.
 
 ---
 
