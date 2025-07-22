@@ -1,58 +1,59 @@
+Project Overview -
+This project delivers an automated end-to-end AWS solution built with AWS CDK as our infrastructure as code tool and deployed by a manual GitHub Actions workflow.
 
-# Welcome to your CDK Python project!
+It creates an S# bucket and uploads sample files during every deploy.
+It deploys a Python 3.9 Lambda function that:
+lists every object in the bucket
+publishes execution details to an SNS topic
+returns {"objects": [...]} to the caller.
+Publishes execution details to an SNS topic that has an e-mail subscription.
+Uses a least-privilege IAM role granting only the S3 read and SNS publish actions the Lambda needs.
 
-This is a blank project for CDK development with Python.
+Repository layout -
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+infrastructure/ - the CDK app - defines all the AWS resources (S3 bucket, SNS Topic, IAM role, Lambda).
 
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+lambda/list_objects/ - defines a lambda handler inside index.py, which lists bucket objects and publishes execution details to an SNS topic.
 
-To manually create a virtualenv on MacOS and Linux:
+sample_files/ - Two random images to test that they are indeed loaded into the bucket upon deployment.
 
-```
-$ python -m venv .venv
-```
+tests/ - Manual trigger script and event.json file, responsible for invoking the lambda locally.
+It is essentially a one click script that invokes the lambda via AWS CLI, it defines the lambda function name, and uses the "aws lambda invoke" to invoke it, and prints the json response.
 
-After the init process completes and the virtualenv is created, you can use the following
-step to activate your virtualenv.
+.github/workflows/ - Defines a simple yml file called basic_workflow_dispatch.yml which is a GitHub actions workflow that bootstraps and deploys the stack.
 
-```
-$ source .venv/bin/activate
-```
+Setup & Deployment
+Fork / Clone the repo
+In your github repo, add repo secrets (Settings -> Secrets -> Actions)
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION (e.g us-east-1)
 
-If you are a Windows platform, you would activate the virtualenv like this:
+Open actions -> Manual CDK Deploy -> Run workflow
+The workflow will:
+Check out the code
+Configure AWS credentials
+Install CDK CLI and Python dependencies
+Run cdk bootstrap and cdk deploy --all
+Watch the run logs, on success you will have a bucket, SNS topic and Lambda deployed.
 
-```
-% .venv\Scripts\activate.bat
-```
 
-Once the virtualenv is activated, you can install the required dependencies.
+* Manual Lambda test instructions
+Ensure AWS CLI is configured (aws configure)
+Run the script from the repository root:
+# cmd
+cd tests
+invoke_lambda.bat
 
-```
-$ pip install -r requirements.txt
-```
+Or, if using powershell:
+* Rename invoke_lambda.bat to invoke_lambda.ps1
+* ./invoke_lambda.ps1
 
-At this point you can now synthesize the CloudFormation template for this code.
+The script invokes the lambda with tests/event.json and prints the JSON response.
+Check your e-mail inbox for the SNS notification containing execution details.
 
-```
-$ cdk synth
-```
-
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
-
-## Useful commands
-
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
-
-Enjoy!
+Tools & Frameworks Used
+AWS CDK (v2, Python) - IaC tool
+GitHub Actions - CI/CD Pipeline (manual deploy)
+AWS CLI - Local / script based invocation of the lambda function.
+boto3 - AWS SDK inside the lambda.
