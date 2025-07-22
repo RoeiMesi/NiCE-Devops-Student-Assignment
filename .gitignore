@@ -12,6 +12,7 @@ cdk.out/
 
 cdk.context.json
 source.bat
+response.json
 
 build/
 dist/
