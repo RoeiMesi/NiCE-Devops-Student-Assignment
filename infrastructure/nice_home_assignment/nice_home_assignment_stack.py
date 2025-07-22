@@ -1,6 +1,7 @@
 from aws_cdk import (
     Duration,
     Stack,
+    CfnParameter,
     aws_s3 as s3,
     aws_lambda as _lambda,
     aws_sns as sns,
@@ -15,6 +16,13 @@ class NiceHomeAssignmentStack(Stack):
 
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        
+        email_param = CfnParameter(
+            self,
+            "NotificationEmail",
+            type="String",
+            description="E-mail address that will receive SNS notifications"
+        )
         
         bucket = s3.Bucket(self, "MyBucket",
             bucket_name="nice-home-task-bucket",
@@ -36,7 +44,7 @@ class NiceHomeAssignmentStack(Stack):
 
         # Subscribe an email endpoint to the SNS topic
         topic.add_subscription(
-            subscriptions.EmailSubscription("roeim442@gmail.com")
+            subscriptions.EmailSubscription(email_param.value_as_string)
         )
 
         # Defining the IAM role with least privilege permissions:
@@ -61,7 +69,7 @@ class NiceHomeAssignmentStack(Stack):
             iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
         )
         
-        # Now we will define the lambda function to list all of the objects within the bucket:
+        # Now we will define the lambda function to list all of the objects within the bucket and publish message to the SNS topic.
         list_fn = _lambda.Function(self, "ListObjectsFunctions",
             runtime=_lambda.Runtime.PYTHON_3_9,
             handler="index.handler",
