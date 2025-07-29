@@ -7,20 +7,43 @@ s3 = boto3.client("s3")
 # Defining the client for interacting with the sns resource.
 sns = boto3.client("sns")
 
+# Defining the client for interacting with the lambda function resource.
+lambda_client = boto3.client("lambda")
+
+# Environment variables
+bucket_name = os.environ["BUCKET_NAME"]
+topic_arn = os.environ["SNS_TOPIC_ARN"]
+max_keys = int(os.environ.get("MAX_KEYS", "1000"))
+safe_margin_ms = int(os.environ.get("SAFE_MARGIN_MS", "5000"))
+    
 def handler(event, context):
-    bucket_name = os.environ["BUCKET_NAME"]
-    topic_arn = os.environ["SNS_TOPIC_ARN"]
+    token = event.get("ContinuationToken")
+    processed = 0
+    sample_keys = []
     
-    resp = s3.list_objects_v2(Bucket=bucket_name)
-    keys = [obj["Key"] for obj in resp.get("Contents", [])]
-    
-    # Defining the execution details:
+    while True:
+        params = {"Bucket": bucket_name, "MaxKeys": max_keys}
+        if token:
+            params["ContinuationToken"] = token
+            
+        resp = s3.list_objects_v2(**params)
+        contents = resp.get("Contents", [])
+        for obj in contents:
+            processed += 1
+            
+            if len(sample_keys) < 10:
+                sample_keys.append(obj["Key"])
+        token = resp.get("NextContinuationToken")
+        
+        if not token or context.get_remaining_time_in_millis() < safe_margin_ms:
+            break
+
+        # Defining the execution details:
     message = {
         "function": context.function_name,
-        "timestamp": datetime.utcnow().isoformat()+"Z",
+        "timestamp": context.aws_request_id,
         "bucket": bucket_name,
-        "object_count": len(keys),
-        "keys": keys
+        "keys": sample_keys,
     }
     
     sns.publish(
@@ -29,6 +52,15 @@ def handler(event, context):
         Message=json.dumps(message)
     )
     
-    objects_dict = {"objects": keys}
-    
-    return objects_dict
+    if token:
+        lambda_client.invoke(
+            FunctionName=context.function_name,
+            InvocationType="Event",
+            Payload=json.dumps({"ContinuationToken": token})
+        )
+        
+    return {
+        "processed": processed,
+        "isTruncated": bool(token),
+        "nextToken": token
+    }
