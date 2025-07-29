@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_s3_deployment as s3deploy,
     aws_iam as iam,
     aws_sns_subscriptions as subscriptions,
+    aws_cloudwatch as cw,
 )
 from constructs import Construct
 
@@ -22,6 +23,18 @@ class NiceHomeAssignmentStack(Stack):
             "NotificationEmail",
             type="String",
             description="E-mail address that will receive SNS notifications"
+        )
+        
+        max_keys_param = CfnParameter(self, "MaxKeysPerInvocation",
+            type="Number",
+            default=1000,
+            description="Maximum S3 keys to list per Lambda invocation"
+        )
+        
+        safe_margin_param = CfnParameter(self, "SafeRemainingTimeMs",
+            type="Number",
+            default=5000,
+            description="Milliseconds of buffer before Lambda timeout to stop work"
         )
         
         bucket = s3.Bucket(self, "MyBucket",
@@ -69,16 +82,25 @@ class NiceHomeAssignmentStack(Stack):
             iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
         )
         
-        # Now we will define the lambda function to list all of the objects within the bucket and publish message to the SNS topic.
+        # Define the lambda function to list all of the objects within the bucket and publish message to the SNS topic.
         list_fn = _lambda.Function(self, "ListObjectsFunctions",
             runtime=_lambda.Runtime.PYTHON_3_9,
             handler="index.handler",
             code=_lambda.Code.from_asset("../lambda/list_objects"),
-            role=role,
             timeout=Duration.seconds(30),
             environment={
-                "BUCKET_NAME": bucket.bucket_name
-            }
+                "BUCKET_NAME": bucket.bucket_name,
+                "SNS_TOPIC_ARN": topic.topic_arn,
+                "MAX_KEYS": max_keys_param.value_as_string,
+                "SAFE_MARGIN_MS": safe_margin_param.value_as_string,
+            },
+            role=role,
         )
-                
-        list_fn.add_environment("SNS_TOPIC_ARN", topic.topic_arn)
+        
+        cw.Alarm(self, "HighP90Duration",
+            metric=list_fn.metric_duration(statistic="p95"),
+            threshold=24000,
+            evaluation_periods=2,
+            comparison_operator=cw.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            alarm_description="Alert if 95th-percentile duration > 24s",
+        )
